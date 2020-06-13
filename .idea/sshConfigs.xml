@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig authType="PASSWORD" host="moss.labs.eait.uq.edu.au" id="853970af-fefe-411c-bed8-51a287d70979" port="22" nameFormat="DESCRIPTIVE" username="s4532136" />
+    </configs>
+  </component>
+</project>

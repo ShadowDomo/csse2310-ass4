@@ -1,0 +1,34 @@
+#ifndef CONTROL_H
+#define CONTROL_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include "networking.h"
+
+
+
+/** Representation of an Airport. **/
+typedef struct Airport {
+    // Airport ID
+    int id;
+
+    // Airport info
+    char* info;
+
+    // port which Airport is on
+    int port;
+} Airport;
+
+/** State of the entire thing. **/
+typedef struct WorldState {
+    // List of known airports
+    Airport** airports;
+
+} WorldState;
+
+
+#endif

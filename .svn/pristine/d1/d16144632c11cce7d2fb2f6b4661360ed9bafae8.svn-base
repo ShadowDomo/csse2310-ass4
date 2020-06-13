@@ -1,0 +1,12 @@
+#include "mapper.h"
+
+
+
+/** Entry point to program. **/
+int main(int argc, char** argv) {
+    ControlState* controlState = malloc(sizeof(controlState));
+    controlState->countPlanes = 0;
+
+    make_socket(0, controlState);
+    return 0;
+}

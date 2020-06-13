@@ -1,0 +1,11 @@
+#include "mapper.h"
+
+
+/** Entry point to program. **/
+int main(int argc, char** argv) {
+    volatile WorldState* worldState = malloc(sizeof(WorldState));
+    worldState->countAirports = malloc(sizeof(int));
+    worldState->countAirports = 0;
+    make_socket(worldState, 0);
+    return 0;
+}

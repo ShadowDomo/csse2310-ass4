@@ -1,0 +1,19 @@
+#include "control.h"
+
+
+
+
+
+
+
+
+/** Entry point to program. **/
+int main(int argc, char** argv) {
+//    printf("hi");
+//    semaphore_tester();
+    WorldState* worldState = malloc(sizeof(worldState));
+    worldState->countAirports = 0;
+//    worldState->airports = malloc(sizeof(Airport*));
+    make_socket(worldState);
+    return 0;
+}

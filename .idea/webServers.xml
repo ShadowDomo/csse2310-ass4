@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="6a100a98-d189-491c-8930-54b56dee70dd" name="moss" url="http://moss.labs.eait.uq.edu.au">
+        <fileTransfer rootFolder="/home/students/s4532136" accessType="SFTP" host="moss.labs.eait.uq.edu.au" port="22" sshConfigId="853970af-fefe-411c-bed8-51a287d70979" sshConfig="s4532136@moss.labs.eait.uq.edu.au:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

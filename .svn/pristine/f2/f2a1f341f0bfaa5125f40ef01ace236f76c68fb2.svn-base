@@ -1,0 +1,170 @@
+#include "networking.h"
+
+struct Param {
+    int* value;
+    pthread_t tid;
+    sem_t* guard;
+};
+
+/** Initializes semaphore. **/
+void init_lock(sem_t* l) {
+    sem_init(l, 0, 1);
+}
+
+/** Takes control of semaphore. **/
+void take_lock(sem_t* l) {
+    sem_wait(l);
+}
+
+/** Unlocks semaphore. **/
+void release_lock(sem_t* l) {
+    sem_post(l);
+}
+
+// TODO temp
+void* fn(void* v) {
+    struct Param* p = (struct Param*)v;
+    p->tid = pthread_self();
+    for (int i = 0; i < 200; ++i) {
+        take_lock(p->guard);
+        (*(p->value))++;
+        release_lock(p->guard);
+    }
+    return 0;
+}
+
+/** Checks input received by the mapper. **/
+int check_string(char* input, sem_t* lock) {
+
+}
+
+
+
+/** Handles a connection to a process. **/
+void* doer(void* v) {
+    // TODO change name
+    struct Param* p = (struct Param*)v;
+    p->tid = pthread_self();
+    take_lock(p->guard);
+    FILE* writeStream = fdopen(*p->value, "w");
+    FILE* readStream = fdopen(*p->value, "r");
+    release_lock(p->guard);
+    while (true) {
+        char input[80];
+        fgets(input, 60, readStream);
+
+        // check string values
+        int action = check_string(input, p->guard);
+
+        // depending on action, we do things
+
+        printf("%s", input);
+        fflush(stdout);
+    }
+
+
+//    release_lock(p->guard);
+    return 0;
+}
+
+int semaphore_tester() {
+    int total = 0;
+    sem_t l;
+    init_lock(&l);
+    struct Param pars[5];
+    pthread_t tids[5];
+    for (int i = 0; i < 5; ++i) {
+        pars[i].value = &total;
+        pars[i].guard = &l;
+        pthread_create(&(tids[i]), 0, fn, pars+i);
+    }
+
+    for (int i = 0; i < 5; ++i) {
+        void* v;
+        pthread_join(tids[i], &v);
+    }
+
+    sem_destroy(&l);
+    printf("got %d", total);
+    return 0;
+}
+
+
+int make_socket() {
+    struct addrinfo* ai = 0;
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    int err;
+    if (err=getaddrinfo("localhost", 0, &hints, &ai)) {
+        freeaddrinfo(ai);
+        fprintf(stderr, "%s\n", gai_strerror(err));
+        return 1;
+    }
+
+    // create socket and bind to port
+    int serv = socket(AF_INET, SOCK_STREAM, 0);
+
+//    // allow rapid reuse of port
+//    int v = 1;
+//    setsockopt(serv, SOL_SOCKET, SO_REUSEADDR, &v, sizeof(v));
+
+    if (bind(serv, (struct sockaddr*)ai->ai_addr, sizeof(struct sockaddr))) {
+        perror("Binding");
+        return 3;
+    }
+
+    // succeeded
+
+    // which port did we get
+    struct sockaddr_in ad;
+    memset(&ad, 0, sizeof(struct sockaddr_in));
+    socklen_t len = sizeof(struct sockaddr_in);
+    if (getsockname(serv, (struct sockaddr*)&ad, &len)) {
+        perror("sockname");
+        return 4;
+    }
+    printf("%u\n", ntohs(ad.sin_port));
+
+    // allow up to 10 requests to queue
+    if (listen(serv, 10)) {
+        perror("listen");
+        return 4;
+    }
+
+    int conn_fd;
+    char* msg = "Go away\n";
+    sem_t l;
+    init_lock(&l);
+    // listen for connections
+    while (conn_fd = accept(serv, 0, 0), conn_fd >= 0) {
+
+
+
+        pthread_t tid;
+        struct Param par;
+        par.value = &conn_fd;
+        par.guard = &l;
+        pthread_create(&tid, 0, doer, &par);
+
+//        void* v;
+//        pthread_join(tid, &v);
+//        printf("hi");
+//        while (1) {
+//            char str[80];
+//            fgets(str, 60, writeStream);
+//            printf("%s", str);
+//            fgets(str, 60, stdin);
+//
+//            // write to client
+//            fputs(str, stream);
+//            fflush(stream);
+////        fclose(stream);
+//        }
+
+    }
+    return 0;
+}

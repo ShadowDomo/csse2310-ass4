@@ -1,0 +1,327 @@
+#include "networking.h"
+
+
+
+/** Initializes semaphore. **/
+void init_lock(sem_t* l) {
+    sem_init(l, 0, 1);
+}
+
+/** Takes control of semaphore. **/
+void take_lock(sem_t* l) {
+    sem_wait(l);
+}
+
+/** Unlocks semaphore. **/
+void release_lock(sem_t* l) {
+    sem_post(l);
+}
+
+// TODO temp
+void* fn(void* v) {
+    struct Param* p = (struct Param*)v;
+    p->tid = pthread_self();
+    for (int i = 0; i < 200; ++i) {
+        take_lock(p->guard);
+        (*(p->value))++;
+        release_lock(p->guard);
+    }
+    return 0;
+}
+
+/** Adds an Airport identified by id and port. **/
+void add_airport(char* id, int port, WorldState* worldState) {
+    // reallocate airport array
+    if (worldState->countAirports == 0) {
+        worldState->airports = malloc(sizeof(Airport*));
+        worldState->airports[0] = malloc(sizeof(Airport));
+    } else {
+        worldState->airports = realloc(worldState->airports,
+                sizeof(Airport*) * worldState->countAirports + 1);
+        worldState->airports[worldState->countAirports] = malloc(sizeof(Airport));
+    }
+
+    // replace trailing '\n'
+//    int idlen = strlen(id);
+//    id[idlen - 2] = '\0';
+
+    worldState->airports[worldState->countAirports]->port = port;
+    worldState->airports[worldState->countAirports]->id = malloc(sizeof(char) * strlen(id));
+    strcpy(worldState->airports[worldState->countAirports]->id, id);
+
+    worldState->countAirports++;
+}
+
+/** Retrieves airport given an id. **/
+Airport* get_airport(WorldState* worldState, char* id) {
+    for (int i = 0; i < worldState->countAirports; ++i) {
+        if (strcmp(worldState->airports[i]->id, id) == 0) {
+            return worldState->airports[i];
+        }
+    }
+
+    // if we get here, there is no airport with given id
+    return 0;
+}
+
+/** For qsort. **/
+int cmp_func(const void* a, const void* b) {
+    Airport* first = *(Airport**) a;
+    Airport* second = *(Airport**) b;
+
+    return strcmp(first->id, second->id);
+}
+
+/** Prints names and their corresponding ports in lexicographical order. **/
+int print_mappings(WorldState* worldState, FILE* writeStream) {
+    int countAirports = worldState->countAirports;
+
+    if (countAirports == 0) {
+        return 1;
+    }
+
+    // sort lexiocographically
+    qsort(&worldState->airports[0], countAirports, sizeof(Airport*), cmp_func);
+
+    for (int i = 0; i < countAirports; ++i) {
+        fprintf(writeStream, "%s:%d\n", worldState->airports[i]->id,
+                worldState->airports[i]->port);
+        fflush(writeStream);
+    }
+
+    return 0;
+}
+
+/** Checks input received by the mapper.
+ *
+ * @param input
+ * @param lock
+ * @return 0 if a ? was seen
+ *         1 if a ! was seen
+ *         2 if a @ was seen
+ *         -1 otherwise.
+ */
+int check_string(char* input, sem_t* lock, WorldState* worldState,
+        FILE* readStream, FILE* writeStream) {
+
+    int lenInput = strlen(input);
+    input[lenInput - 1] = '\0';
+    /** Send the port number for the airport called ID **/
+    if (strncmp(input, "?", 1) == 0) {
+        // extract id from input
+        char id[80];
+        snprintf(id, 80, "%s", input + 1);
+
+        take_lock(lock);
+        // Send back the port number for the airport called id
+        // note id can be any characters
+
+        Airport* airport = get_airport(worldState, id);
+
+        // if there is no mapping
+        if (airport == NULL) {
+            fprintf(writeStream, ";\n");
+        } else {
+            // if there is an entry corresponding to that ID
+            int portNumber = airport->port;
+            fprintf(writeStream, "%d\n", portNumber);
+        }
+
+        fflush(writeStream);
+        release_lock(lock);
+        return 0;
+    }
+    /** Add airport called ID with PORT as the port number **/
+    if (strncmp(input, "!", 1) == 0) {
+        take_lock(lock);
+        // find colon
+        char* ptr = strchr(input, ':');
+        int indexOfDelim = ptr - input;
+        int indexOfPort = indexOfDelim + 1;
+
+        // get id
+        char id[80];
+        snprintf(id, indexOfDelim, "%s", input + 1);
+
+        // get the port number
+        char port[6];
+        snprintf(port, PORT_MAX_CHARS, "%s", input + indexOfPort);
+
+        char* trash;
+        int portNum = (int) strtol(port, &trash ,10);
+
+        // add airport
+        add_airport(id, portNum, worldState);
+        release_lock(lock);
+        return 1;
+    }
+    /** Send back all names and their corresponding ports **/
+    if (strncmp(input, "@", 1) == 0) {
+        // sort by lexicographic order of id with newline at end of entry.
+        // id and port separated by a colon
+        //todo check invalid commands
+
+        take_lock(lock);
+        print_mappings(worldState, writeStream);
+        release_lock(lock);
+        return 2;
+    }
+
+    return -1;
+}
+
+
+
+/** Control thread doer **/
+void* control_doer(void* v) {
+    // TODO change name
+    struct Param* p = (struct Param*)v;
+    p->tid = pthread_self();
+    WorldState* worldState = p->worldState;
+    take_lock(p->guard);
+    FILE* writeStream = fdopen(*p->value, "w");
+    FILE* readStream = fdopen(*p->value, "r");
+    release_lock(p->guard);
+    while (true) {
+        char input[80];
+        fgets(input, 80, readStream);
+
+        // check string values
+        int action = check_string(input, p->guard, worldState, readStream,
+                                  writeStream);
+
+        fflush(stdout);
+    }
+
+
+//    release_lock(p->guard);
+    return 0;
+}
+
+
+/** Handles a connection to a process. **/
+void* mapper_doer(void* v) {
+    // TODO change name
+    struct Param* p = (struct Param*)v;
+    p->tid = pthread_self();
+    WorldState* worldState = p->worldState;
+    take_lock(p->guard);
+    FILE* writeStream = fdopen(*p->value, "w");
+    FILE* readStream = fdopen(*p->value, "r");
+    release_lock(p->guard);
+    while (true) {
+        char input[80];
+        fgets(input, 80, readStream);
+
+        // check string values
+        int action = check_string(input, p->guard, worldState, readStream,
+                writeStream);
+
+        fflush(stdout);
+    }
+
+
+//    release_lock(p->guard);
+    return 0;
+}
+
+int semaphore_tester() {
+    int total = 0;
+    sem_t l;
+    init_lock(&l);
+    struct Param pars[5];
+    pthread_t tids[5];
+    for (int i = 0; i < 5; ++i) {
+        pars[i].value = &total;
+        pars[i].guard = &l;
+        pthread_create(&(tids[i]), 0, fn, pars+i);
+    }
+
+    for (int i = 0; i < 5; ++i) {
+        void* v;
+        pthread_join(tids[i], &v);
+    }
+
+    sem_destroy(&l);
+    printf("got %d", total);
+    return 0;
+}
+
+
+int make_socket(WorldState* worldState, ControlState* controlState) {
+    bool hasWorldState = true;
+    bool hasControlState = true;
+    if (worldState == NULL) {
+        hasWorldState = false;
+    }
+    if (controlState == NULL) {
+        hasControlState = false;
+    }
+    struct addrinfo* ai = 0;
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    int err;
+    if (err=getaddrinfo("localhost", 0, &hints, &ai)) {
+        freeaddrinfo(ai);
+        fprintf(stderr, "%s\n", gai_strerror(err));
+        return 1;
+    }
+
+    // create socket and bind to port
+    int serv = socket(AF_INET, SOCK_STREAM, 0);
+
+//    // allow rapid reuse of port
+//    int v = 1;
+//    setsockopt(serv, SOL_SOCKET, SO_REUSEADDR, &v, sizeof(v));
+
+    if (bind(serv, (struct sockaddr*)ai->ai_addr, sizeof(struct sockaddr))) {
+        perror("Binding");
+        return 3;
+    }
+
+    // succeeded
+
+    // which port did we get
+    struct sockaddr_in ad;
+    memset(&ad, 0, sizeof(struct sockaddr_in));
+    socklen_t len = sizeof(struct sockaddr_in);
+    if (getsockname(serv, (struct sockaddr*)&ad, &len)) {
+        perror("sockname");
+        return 4;
+    }
+    printf("%u\n", ntohs(ad.sin_port));
+
+    // allow up to 10 requests to queue
+    if (listen(serv, 10)) {
+        perror("listen");
+        return 4;
+    }
+
+    int conn_fd;
+    char* msg = "Go away\n";
+    sem_t l;
+    init_lock(&l);
+    // listen for connections
+    while (conn_fd = accept(serv, 0, 0), conn_fd >= 0) {
+        pthread_t tid;
+
+        if (hasWorldState) {
+            struct Param par;
+            par.value = &conn_fd;
+            par.guard = &l;
+            par.worldState = worldState;
+            pthread_create(&tid, 0, mapper_doer, &par);
+        } else if (hasControlState) {
+            struct ControlParam par;
+            par.controlState = controlState;
+            par.value = &conn_fd;
+            par.guard = &l;
+            pthread_create(&tid, 0, control_doer, &par);
+        }
+    }
+    return 0;
+}

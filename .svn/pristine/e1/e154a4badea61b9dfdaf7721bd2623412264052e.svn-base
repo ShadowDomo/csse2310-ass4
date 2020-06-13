@@ -1,0 +1,41 @@
+#ifndef NETWORKING_H
+#define NETWORKING_H
+
+#include <netdb.h>
+#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <stdlib.h>
+#include <semaphore.h>
+#include <stdbool.h>
+
+#define PORT_MAX_CHARS 6 // incl '\0'
+
+
+/** Representation of an Airport. **/
+typedef struct Airport {
+    // Airport ID
+    char* id;
+
+    // Airport info
+    char* info;
+
+    // port which Airport is on
+    int port;
+} Airport;
+
+/** State of the entire thing. **/
+typedef struct WorldState {
+    // List of known airports
+    Airport** airports;
+
+    // number of airports
+    int countAirports;
+
+} WorldState;
+
+int make_socket();
+
+
+#endif

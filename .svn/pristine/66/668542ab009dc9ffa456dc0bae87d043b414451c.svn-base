@@ -1,0 +1,16 @@
+#include "control.h"
+
+
+
+
+
+
+
+
+/** Entry point to program. **/
+int main(int argc, char** argv) {
+//    printf("hi");
+//    semaphore_tester();
+    make_socket();
+    return 0;
+}

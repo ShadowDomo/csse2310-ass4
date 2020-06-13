@@ -1,0 +1,29 @@
+#include "mapper.h"
+
+
+
+/** Entry point to program. **/
+int main(int argc, char** argv) {
+    ControlState* controlState = malloc(sizeof(controlState));
+    controlState->countPlanes = 0;
+
+    // set airport id
+    controlState->airportId = malloc(sizeof(char) * 80);
+    controlState->airportId = argv[1];
+
+    // set airport info
+    controlState->airportInfo = malloc(sizeof(char) * 80);
+    controlState->airportInfo = argv[2];
+
+    // mapper port of -1 means none was given
+    controlState->mapperPort = -1;
+
+    // set mapper port if exists
+    if (argc == 4) {
+        char* trash;
+        controlState->mapperPort = (int) strtol(argv[3], &trash, 10);
+    }
+    make_socket(0, controlState);
+
+    return 0;
+}
